@@ -1,39 +1,77 @@
+<<<<<<< HEAD
 from flask import Flask, render_template, url_for, flash, redirect
 import joblib
 from flask import request
 import numpy as np
 import sklearn
+=======
+>>>>>>> 5f2e97408d6379fc192e5c127213b67d4270a8fb
 
-app = Flask(__name__, template_folder='templates')
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier 
+from sklearn import metrics
+from flask import Flask, request, render_template
+import re
+import math
+
+app = Flask("__name__")
+
+q = ""
 
 @app.route("/")
+def loadPage():
+	return render_template('home.html', query="")
 
-@app.route("/cancer")
-def cancer():
-    return render_template("cancer.html")
 
-def ValuePredictor(to_predict_list, size):
-    to_predict = np.array(to_predict_list).reshape(1,size)
-    if(size==5):
-        loaded_model = joblib.load(r'cancer_model.pkl')
-        result = loaded_model.predict(to_predict)
-    return result[0]
 
-@app.route('/predict', methods = ["POST"])
-def predict():
-    if request.method == "POST":
-        to_predict_list = request.form.to_dict()
-        to_predict_list = list(to_predict_list.values())
-        to_predict_list = list(map(float, to_predict_list))
-         #cancer
-        if(len(to_predict_list)==5):
-            result = ValuePredictor(to_predict_list,5)
+@app.route("/", methods=['POST'])
+def cancerPrediction():
+    dataset_url = "https://raw.githubusercontent.com/apogiatzis/breast-cancer-azure-ml-notebook/master/breast-cancer-data.csv"
+    df = pd.read_csv(dataset_url)
+
+    df.info()
+
+    inputQuery1 = request.form['query1']
+    inputQuery2 = request.form['query2']
+    inputQuery3 = request.form['query3']
+    inputQuery4 = request.form['query4']
+    inputQuery5 = request.form['query5']
+
+    df['diagnosis']=df['diagnosis'].map({'M':1,'B':0})
+
+    train, test = train_test_split(df, test_size = 0.2)
+
+    features = ['texture_mean','perimeter_mean','smoothness_mean','compactness_mean','symmetry_mean']
+
+    train_X = train[features]
+    train_y=train.diagnosis
     
-    if(int(result)==1):
-        prediction = "Sorry you chances of getting the disease. Please consult the doctor immediately"
-    else:
-        prediction = "No need to fear. You have no dangerous symptoms of the disease"
-    return(render_template("result.html", prediction_text=prediction))       
+    test_X= test[features]
+    test_y =test.diagnosis
 
-if __name__ == "__main__":
-    app.run(debug=True)
+    model=RandomForestClassifier(n_estimators=100, n_jobs=-1)
+    model.fit(train_X,train_y)
+
+    prediction=model.predict(test_X)
+    metrics.accuracy_score(prediction,test_y)
+    data = [[inputQuery1, inputQuery2, inputQuery3, inputQuery4, inputQuery5]]
+    #print('data is: ')
+    #print(data)
+    #016.14, 74.00, 0.01968, 0.05914, 0.1619
+    
+    # Create the pandas DataFrame 
+    new_df = pd.DataFrame(data, columns = ['texture_mean', 'perimeter_mean', 'smoothness_mean', 'compactness_mean', 'symmetry_mean'])
+    single = model.predict(new_df)
+    probability = model.predict_proba(new_df)[:,1]
+    print(probability)
+    if single==1:
+        output = "The patient is diagnosed with Breast Cancer"
+        output1 = "Confidence: {}".format(probability*100)
+    else:
+        output = "The patient is not diagnosed with Breast Cancer"
+        output1 = ""
+    
+    return render_template('home.html', output1=output, output2=output1, query1 = request.form['query1'], query2 = request.form['query2'],query3 = request.form['query3'],query4 = request.form['query4'],query5 = request.form['query5'])
+    
+app.run()
